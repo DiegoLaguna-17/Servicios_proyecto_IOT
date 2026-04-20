@@ -1,0 +1,69 @@
+
+services:
+
+  attendfi:
+    build: ./Backend-attendfi
+    container_name: attendfi
+    env_file:
+      - ./Backend-attendfi/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Backend-attendfi:/app
+      - insightface_models:/root/.insightface
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+
+  inscripciones:
+    build: ./Backend-inscripciones-IOT
+    container_name: inscripciones
+    env_file:
+      - ./Backend-inscripciones-IOT/.env
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./Backend-inscripciones-IOT:/app
+      - /app/node_modules
+    command: npm run dev
+
+  iotmongo:
+    build: ./IOT-Mongo
+    container_name: iotmongo
+    env_file:
+      - ./IOT-Mongo/.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./IOT-Mongo:/app
+      - /app/node_modules
+    command: npm run dev
+
+  frontend1:
+    build: ./Frontend-Sistema-Inscripcion-Cursos
+    container_name: frontend1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend-Sistema-Inscripcion-Cursos:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    depends_on:
+      - attendfi
+      - inscripciones
+
+  frontend2:
+    build: ./IOT-Series-Frontend
+    container_name: frontend2
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./IOT-Series-Frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    depends_on:
+      - attendfi
+      - iotmongo
+
+volumes:
+  insightface_models:

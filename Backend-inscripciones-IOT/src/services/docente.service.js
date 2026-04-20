@@ -1,0 +1,696 @@
+const supabase = require("../config/supabase");
+const EncryptUtils = require("../utils/encrypt");
+
+class DocenteService {
+  // Registrar un nuevo docente
+  async registrarDocente(datosDocente) {
+    try {
+      // Primero verificar que el CI no exista
+      const { data: usuarioExiste, error: errorBusqueda } = await supabase
+        .from("usuario")
+        .select("ci")
+        .eq("ci", datosDocente.ci)
+        .single();
+
+      if (usuarioExiste) {
+        throw new Error("Ya existe un usuario con ese carnet de identidad");
+      }
+
+      // Verificar que el correo no exista
+      const { data: correoExiste, error: errorCorreo } = await supabase
+        .from("usuario")
+        .select("correo")
+        .eq("correo", datosDocente.correo)
+        .single();
+
+      if (correoExiste) {
+        throw new Error("Ya existe un usuario con ese correo electrónico");
+      }
+
+      // Obtener el ID del rol "docente"
+      const { data: rolDocente, error: errorRol } = await supabase
+        .from("rol")
+        .select("id_rol")
+        .eq("rol", "docente")
+        .single();
+
+      if (errorRol || !rolDocente) {
+        throw new Error("No se encontró el rol de docente en el sistema");
+      }
+
+      // Hashear la contraseña antes de guardarla
+      const contraseniaHasheada = await EncryptUtils.hashPassword(
+        datosDocente.contrasenia,
+      );
+
+      // Preparar datos para insertar
+      const nuevoUsuario = {
+        ci: datosDocente.ci,
+        nombre: datosDocente.nombre,
+        correo: datosDocente.correo,
+        telefono: datosDocente.telefono,
+        contrasenia: contraseniaHasheada,
+        fecha_nac: datosDocente.fecha_nac,
+        direccion: datosDocente.direccion,
+        experiencia: datosDocente.experiencia,
+        rol_id_rol: rolDocente.id_rol,
+        carrera_usuario: null, // Docentes no están asociados a una carrera
+        estado: true,
+      };
+
+      // Insertar el nuevo usuario
+      const { data, error } = await supabase
+        .from("usuario")
+        .insert([nuevoUsuario])
+        .select();
+
+      if (error) {
+        console.error("Error al insertar usuario:", error);
+        throw new Error("Error al registrar el docente: " + error.message);
+      }
+
+      return {
+        exito: true,
+        mensaje: "Docente registrado exitosamente",
+        data: {
+          ci: data[0].ci,
+          nombre: data[0].nombre,
+          correo: data[0].correo,
+        },
+      };
+    } catch (error) {
+      console.error("Error en registrarDocente:", error);
+      throw error;
+    }
+  }
+
+  // Verificar si un CI existe
+  async verificarCIExiste(ci) {
+    try {
+      const { data, error } = await supabase
+        .from("usuario")
+        .select("ci")
+        .eq("ci", ci)
+        .single();
+
+      return !!data;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Obtener lista de docentes activos
+  async obtenerDocentes() {
+    try {
+      const { data, error } = await supabase
+        .from("usuario")
+        .select(
+          `
+          ci,
+          nombre,
+          correo,
+          telefono,
+          direccion,
+          experiencia,
+          fecha_nac,
+          estado,
+          rol!inner(rol)
+        `,
+        )
+        .eq("rol.rol", "docente")
+        .eq("estado", true)
+        .order("nombre", { ascending: true });
+
+      if (error) {
+        throw new Error("Error al obtener los docentes: " + error.message);
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Error en obtenerDocentes:", error);
+      throw error;
+    }
+  }
+
+  // Editar docente (solo campos permitidos: teléfono, dirección, contraseña)
+  async editarDocente(ci, datosActualizar) {
+    try {
+      // Verificar que el docente existe y está activo
+      const { data: docente, error: errorDocente } = await supabase
+        .from("usuario")
+        .select("ci, rol!inner(rol)")
+        .eq("ci", ci)
+        .eq("rol.rol", "docente")
+        .eq("estado", true)
+        .single();
+
+      if (errorDocente || !docente) {
+        throw new Error("No se encontró el docente o está inactivo");
+      }
+
+      // Preparar datos para actualizar (solo campos permitidos)
+      const datosPermitidos = {};
+      if (datosActualizar.telefono !== undefined) {
+        datosPermitidos.telefono = datosActualizar.telefono;
+      }
+      if (datosActualizar.direccion !== undefined) {
+        datosPermitidos.direccion = datosActualizar.direccion;
+      }
+      if (datosActualizar.contrasenia !== undefined) {
+        // Hashear la nueva contraseña antes de guardarla
+        const contraseniaHasheada = await EncryptUtils.hashPassword(
+          datosActualizar.contrasenia,
+        );
+        datosPermitidos.contrasenia = contraseniaHasheada;
+      }
+
+      // Verificar que al menos un campo se va a actualizar
+      if (Object.keys(datosPermitidos).length === 0) {
+        throw new Error("No se proporcionaron campos válidos para actualizar");
+      }
+
+      // Actualizar el docente
+      const { data, error } = await supabase
+        .from("usuario")
+        .update(datosPermitidos)
+        .eq("ci", ci)
+        .select();
+
+      if (error) {
+        console.error("Error al actualizar docente:", error);
+        throw new Error("Error al actualizar el docente: " + error.message);
+      }
+
+      return {
+        exito: true,
+        mensaje: "Docente actualizado exitosamente",
+        data: {
+          ci: data[0].ci,
+          nombre: data[0].nombre,
+          camposActualizados: Object.keys(datosPermitidos),
+        },
+      };
+    } catch (error) {
+      console.error("Error en editarDocente:", error);
+      throw error;
+    }
+  }
+
+  // Eliminar docente (eliminación lógica)
+  async eliminarDocente(ci) {
+    try {
+      // Verificar que el docente existe y está activo
+      const { data: docente, error: errorDocente } = await supabase
+        .from("usuario")
+        .select("ci, nombre, rol!inner(rol)")
+        .eq("ci", ci)
+        .eq("rol.rol", "docente")
+        .eq("estado", true)
+        .single();
+
+      if (errorDocente || !docente) {
+        throw new Error("No se encontró el docente o ya está inactivo");
+      }
+
+      // Cambiar estado a false (eliminación lógica)
+      const { data, error } = await supabase
+        .from("usuario")
+        .update({ estado: false })
+        .eq("ci", ci)
+        .select();
+
+      if (error) {
+        console.error("Error al eliminar docente:", error);
+        throw new Error("Error al eliminar el docente: " + error.message);
+      }
+
+      return {
+        exito: true,
+        mensaje: "Docente eliminado exitosamente",
+        data: {
+          ci: docente.ci,
+          nombre: docente.nombre,
+        },
+      };
+    } catch (error) {
+      console.error("Error en eliminarDocente:", error);
+      throw error;
+    }
+  }
+
+  // Obtener un docente específico por CI
+  async obtenerDocentePorCI(ci) {
+    try {
+      const { data, error } = await supabase
+        .from("usuario")
+        .select(
+          `
+          ci,
+          nombre,
+          correo,
+          telefono,
+          direccion,
+          experiencia,
+          fecha_nac,
+          estado,
+          rol!inner(rol)
+        `,
+        )
+        .eq("ci", ci)
+        .eq("rol.rol", "docente")
+        .eq("estado", true)
+        .single();
+
+      if (error || !data) {
+        throw new Error("No se encontró el docente o está inactivo");
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Error en obtenerDocentePorCI:", error);
+      throw error;
+    }
+  }
+
+  // Obtener las materias asignadas a un docente específico con conteo de inscritos
+  async obtenerMateriasPorDocente(ci) {
+    try {
+      const { data, error } = await supabase
+        .from("materia")
+        .select(
+          `
+          id_materia,
+          nombre,
+          tipo,
+          cupo,
+          dia,
+          hora_inicio,
+          hora_fin,
+          fecha_inicio,
+          fecha_fin,
+          carrera_codigo,
+          aula_id_aula,
+          aula:aula_id_aula (
+            id_aula,
+            nombre
+          ),
+          inscritos:inscripciones_materia(count)
+        `,
+        )
+        .eq("usuario_ci", ci);
+
+      if (error) {
+        throw new Error("Error al consultar las materias: " + error.message);
+      }
+
+      const materiasFormateadas = data.map((materia) => {
+        const count =
+          materia.inscritos && materia.inscritos[0]
+            ? materia.inscritos[0].count
+            : 0;
+
+        const { inscritos, ...resto } = materia;
+
+        return {
+          ...resto,
+          inscritos: count,
+        };
+      });
+
+      return materiasFormateadas;
+    } catch (error) {
+      console.error("Error en obtenerMateriasPorDocente:", error);
+      throw error;
+    }
+  }
+
+  // Obtener todos los estudiantes y sus calificaciones de una materia
+  async obtenerEstudiantesYNotas(id_materia) {
+    try {
+      const { data, error } = await supabase
+        .from("inscripciones_materia")
+        .select(
+          `
+        materia_id_materia,
+        inscripcion:inscripcion_id_inscripcion (
+          usuario:usuario_ci (
+            ci,
+            nombre,
+            correo,
+            notas!left (
+              id_nota,
+              calificacion,
+              materia_id_materia
+            )
+          )
+        )
+      `,
+        )
+        .eq("materia_id_materia", id_materia)
+        .eq("estado_academico", "EN_CURSO");
+
+      if (error) throw error;
+
+      const estudiantes = data.map((e) => {
+        const usuario = e.inscripcion?.usuario;
+
+        return {
+          id_estudiante: usuario?.ci,
+          correo: usuario?.correo,
+          nombre: usuario?.nombre ?? "Sin nombre",
+          notas: (usuario?.notas || [])
+            .filter((n) => n.materia_id_materia === id_materia)
+            .map((n) => ({
+              id_nota: n.id_nota,
+              calificacion: n.calificacion,
+            })),
+        };
+      });
+
+      return estudiantes;
+    } catch (error) {
+      console.error("Error en obtenerEstudiantesYNotas:", error);
+      throw error;
+    }
+  }
+
+  // Registrar las notas de estudiantes de una materia
+  async agregarNotasEstudiantes(id_materia, notasArray) {
+    try {
+      const cisEstudiantes = [
+        ...new Set(notasArray.map((n) => n.id_estudiante)),
+      ];
+
+      const { data: inscripcionesValidas, error: errorValidacion } =
+        await supabase
+          .from("inscripciones_materia")
+          .select(
+            `
+          materia_id_materia,
+          inscripcion!inner (
+            usuario_ci
+          )
+        `,
+          )
+          .eq("materia_id_materia", id_materia)
+          .in("inscripcion.usuario_ci", cisEstudiantes);
+
+      if (errorValidacion)
+        throw new Error(
+          "Error al validar inscripciones: " + errorValidacion.message,
+        );
+
+      const cisValidados = inscripcionesValidas.map(
+        (i) => i.inscripcion.usuario_ci,
+      );
+      const estudiantesNoInscritos = cisEstudiantes.filter(
+        (ci) => !cisValidados.includes(ci),
+      );
+
+      if (estudiantesNoInscritos.length > 0) {
+        throw new Error(
+          `Los siguientes estudiantes no están inscritos en esta materia: ${estudiantesNoInscritos.join(", ")}`,
+        );
+      }
+
+      const filasAInsertar = notasArray.map((nota) => ({
+        usuario_ci: nota.id_estudiante,
+        materia_id_materia: id_materia,
+        calificacion: nota.nueva_nota,
+      }));
+
+      const { data, error: errorInsert } = await supabase
+        .from("notas")
+        .insert(filasAInsertar)
+        .select();
+
+      if (errorInsert)
+        throw new Error("Error al insertar las notas: " + errorInsert.message);
+
+      return {
+        exito: true,
+        mensaje: `Se registraron ${data.length} notas exitosamente.`,
+        data,
+      };
+    } catch (error) {
+      console.error("Error en agregarNotasEstudiantes:", error);
+      throw error;
+    }
+  }
+  async editarNotasEstudiantes(id_materia, notasArray, docente_ci) {
+    try {
+      console.log("SERVICE editarNotasEstudiantes -> INICIO", {
+        id_materia,
+        docente_ci,
+        notasArray,
+      });
+
+      const { data: materia, error: errorMateria } = await supabase
+        .from("materia")
+        .select("id_materia, usuario_ci, nombre")
+        .eq("id_materia", id_materia)
+        .single();
+
+      console.log("SERVICE editarNotasEstudiantes -> materia encontrada", {
+        materia,
+        errorMateria,
+      });
+
+      if (errorMateria || !materia) {
+        throw new Error("La materia no existe");
+      }
+
+      console.log("SERVICE editarNotasEstudiantes -> comparación docente", {
+        docenteToken: docente_ci,
+        docenteMateria: materia.usuario_ci,
+      });
+
+      if (docente_ci && String(materia.usuario_ci) !== String(docente_ci)) {
+        throw new Error("La materia no pertenece al docente autenticado");
+      }
+
+      const cisEstudiantes = [
+        ...new Set(notasArray.map((n) => n.id_estudiante)),
+      ];
+
+      console.log("SERVICE editarNotasEstudiantes -> estudiantes recibidos", {
+        cisEstudiantes,
+      });
+
+      const { data: inscripcionesValidas, error: errorValidacion } =
+        await supabase
+          .from("inscripciones_materia")
+          .select(
+            `
+          materia_id_materia,
+          estado_academico,
+          inscripcion!inner (
+            usuario_ci
+          )
+        `,
+          )
+          .eq("materia_id_materia", id_materia)
+          .eq("estado_academico", "EN_CURSO")
+          .in("inscripcion.usuario_ci", cisEstudiantes);
+
+      console.log("SERVICE editarNotasEstudiantes -> inscripciones válidas", {
+        inscripcionesValidas,
+        errorValidacion,
+      });
+
+      if (errorValidacion) {
+        throw new Error(
+          "Error al validar inscripciones: " + errorValidacion.message,
+        );
+      }
+
+      const cisValidados = inscripcionesValidas.map(
+        (i) => i.inscripcion.usuario_ci,
+      );
+
+      const estudiantesNoInscritos = cisEstudiantes.filter(
+        (ci) => !cisValidados.includes(ci),
+      );
+
+      console.log(
+        "SERVICE editarNotasEstudiantes -> estudiantes no inscritos",
+        {
+          estudiantesNoInscritos,
+        },
+      );
+
+      if (estudiantesNoInscritos.length > 0) {
+        throw new Error(
+          `Los siguientes estudiantes no están inscritos en esta materia o no están en curso: ${estudiantesNoInscritos.join(", ")}`,
+        );
+      }
+
+      const notasActualizadas = [];
+      const errores = [];
+
+      for (const estudiante of notasArray) {
+        const { id_estudiante, nombre, nuevas_notas } = estudiante;
+
+        console.log("SERVICE editarNotasEstudiantes -> procesando estudiante", {
+          id_estudiante,
+          nombre,
+          nuevas_notas,
+        });
+
+        if (!Array.isArray(nuevas_notas) || nuevas_notas.length === 0) {
+          errores.push({
+            id_estudiante,
+            nombre,
+            error: "No se enviaron notas para actualizar",
+          });
+          continue;
+        }
+
+        for (const nota of nuevas_notas) {
+          const { id_nota, calificacion } = nota;
+
+          console.log("SERVICE editarNotasEstudiantes -> procesando nota", {
+            id_estudiante,
+            id_nota,
+            calificacion,
+          });
+
+          if (id_nota === undefined || calificacion === undefined) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "Faltan campos requeridos en la nota",
+            });
+            continue;
+          }
+
+          const calificacionNumerica = Number(calificacion);
+
+          if (
+            Number.isNaN(calificacionNumerica) ||
+            calificacionNumerica < 0 ||
+            calificacionNumerica > 100
+          ) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "La calificación es inválida. Debe estar entre 0 y 100",
+            });
+            continue;
+          }
+
+          const { data: notaExistente, error: errorNotaExistente } =
+            await supabase
+              .from("notas")
+              .select("id_nota, usuario_ci, materia_id_materia, calificacion")
+              .eq("id_nota", id_nota)
+              .single();
+
+          console.log("SERVICE editarNotasEstudiantes -> nota existente", {
+            notaExistente,
+            errorNotaExistente,
+          });
+
+          if (errorNotaExistente || !notaExistente) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "La nota no existe",
+            });
+            continue;
+          }
+
+          if (String(notaExistente.usuario_ci) !== String(id_estudiante)) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "La nota no pertenece al estudiante indicado",
+            });
+            continue;
+          }
+
+          if (String(notaExistente.materia_id_materia) !== String(id_materia)) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "La nota no pertenece a la materia indicada",
+            });
+            continue;
+          }
+
+          const { data: notaActualizada, error: errorUpdate } = await supabase
+            .from("notas")
+            .update({ calificacion: calificacionNumerica })
+            .eq("id_nota", id_nota)
+            .select("id_nota, usuario_ci, materia_id_materia, calificacion")
+            .single();
+
+          console.log("SERVICE editarNotasEstudiantes -> nota actualizada", {
+            notaActualizada,
+            errorUpdate,
+          });
+
+          if (errorUpdate) {
+            errores.push({
+              id_estudiante,
+              nombre,
+              id_nota,
+              error: "Error al actualizar la nota: " + errorUpdate.message,
+            });
+            continue;
+          }
+
+          notasActualizadas.push({
+            id_estudiante,
+            nombre,
+            id_nota: notaActualizada.id_nota,
+            calificacion: notaActualizada.calificacion,
+          });
+        }
+      }
+
+      const agrupadas = [];
+
+      for (const item of notasArray) {
+        const delEstudiante = notasActualizadas.filter(
+          (n) => String(n.id_estudiante) === String(item.id_estudiante),
+        );
+
+        agrupadas.push({
+          id_estudiante: item.id_estudiante,
+          nombre: item.nombre,
+          nuevas_notas: delEstudiante.map((n) => ({
+            id_nota: n.id_nota,
+            calificacion: n.calificacion,
+          })),
+        });
+      }
+
+      console.log("SERVICE editarNotasEstudiantes -> RESULTADO FINAL", {
+        id_materia,
+        agrupadas,
+        errores,
+      });
+
+      return {
+        exito: true,
+        mensaje: `Se actualizaron ${notasActualizadas.length} notas exitosamente.`,
+        data: {
+          id_materia,
+          notas: agrupadas,
+        },
+        errores,
+      };
+    } catch (error) {
+      console.error("Error en editarNotasEstudiantes:", error);
+      throw error;
+    }
+  }
+}
+
+module.exports = new DocenteService();
