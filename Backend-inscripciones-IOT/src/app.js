@@ -5,6 +5,8 @@ require('dotenv').config();
 const routes = require('./routes/index');
 const { errorMiddleware } = require('./middlewares/error.middleware');
 const { iniciarCronActualizacionEstados } = require('./jobs/actualizarEstadosAcademicos');
+const http = require('http'); // 🟢 Nuevo
+const socketUtil = require('./utils/socket');
 
 const app = express();
 
@@ -61,8 +63,25 @@ app.get("/test-mail-simple", async (req, res) => {
 
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+
+// 🟢 1. En lugar de app.listen, creamos el servidor HTTP nativo
+const server = http.createServer(app);
+
+// 🟢 2. Inicializamos Socket.IO pasándole nuestro servidor
+const io = socketUtil.init(server);
+
+// 🟢 3. Escuchamos eventos de conexión para saber cuándo se conecta el frontend (Vue)
+io.on('connection', (socket) => {
+  console.log('🔌 Nuevo cliente conectado (Vue):', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('❌ Cliente desconectado:', socket.id);
+  });
+});
+
+// 🟢 4. AHORA USAMOS server.listen EN LUGAR DE app.listen
+server.listen(PORT, () => {
+  console.log(`Servidor HTTP y WebSocket corriendo en http://localhost:${PORT}`);
   console.log(`API disponible en: http://localhost:${PORT}/api`);
   
   // Iniciar cron job de actualización de estados académicos
