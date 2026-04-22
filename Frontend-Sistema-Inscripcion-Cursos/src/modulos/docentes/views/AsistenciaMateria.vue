@@ -240,12 +240,13 @@ const fechaFiltroStats = computed(() => {
 });
 
 const statsAsistencia = computed(() => {
-  let presentes = 0;
-  let ausentes = 0;
-
   if (!fechaFiltroStats.value || !estudiantes.value.length) {
     return { presentes: 0, ausentes: 0, total: 0, pctPresentes: 0, pctAusentes: 0 };
   }
+
+  // 🟢 El TOTAL siempre es la cantidad de alumnos inscritos
+  const total = estudiantes.value.length; 
+  let presentes = 0;
 
   estudiantes.value.forEach(est => {
     let estado = null;
@@ -255,17 +256,20 @@ const statsAsistencia = computed(() => {
       estado = est.asistencias[fechaFiltroStats.value];
     }
 
-    if (estado === true) presentes++;
-    else if (estado === false) ausentes++;
+    // Solo sumamos los que explícitamente están presentes
+    if (estado === true) {
+      presentes++;
+    }
   });
 
-  const total = presentes + ausentes;
+  // 🟢 El resto (tengan false, null o undefined) se consideran ausentes
+  const ausentes = total - presentes;
+
   const pctPresentes = total === 0 ? 0 : Math.round((presentes / total) * 100);
   const pctAusentes = total === 0 ? 0 : Math.round((ausentes / total) * 100);
 
   return { presentes, ausentes, total, pctPresentes, pctAusentes };
 });
-
 const estudiantesSinMarcar = computed(() => {
   if (!nuevaFechaActual.value) return []
   return estudiantes.value.filter(est => {
@@ -296,17 +300,29 @@ const formatearFecha = (fecha) => {
 }
 
 const calcularPorcentajes = () => {
-  if (!estudiantes.value) return
+  if (!estudiantes.value) return;
+
+  // 🟢 El total de clases impartidas incluye la fecha que estamos registrando
+  const totalClases = fechasOrdenadas.value.length;
+
   estudiantes.value.forEach(est => {
-    const asistencias = Object.values(est.asistencias).filter(val => val !== undefined && val !== null)
-    const total = asistencias.length
-    if (total > 0) {
-      const presentes = asistencias.filter(a => a === true).length
-      est.porcentajeAsistencia = Math.round((presentes / total) * 100)
+    if (totalClases > 0) {
+      let presentes = 0;
+      
+      fechasOrdenadas.value.forEach(fecha => {
+        // Revisamos asistenciasTemp si estamos en modo registro y es la clase de hoy
+        if (modoRegistro.value && fecha === nuevaFechaActual.value) {
+            if (est.asistenciasTemp[fecha] === true) presentes++;
+        } else {
+            if (est.asistencias[fecha] === true) presentes++;
+        }
+      });
+      
+      est.porcentajeAsistencia = Math.round((presentes / totalClases) * 100);
     } else {
-      est.porcentajeAsistencia = 0
+      est.porcentajeAsistencia = 0;
     }
-  })
+  });
 }
 
 const abrirModalFecha = () => {
