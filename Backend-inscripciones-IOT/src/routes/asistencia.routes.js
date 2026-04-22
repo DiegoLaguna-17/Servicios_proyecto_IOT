@@ -4,6 +4,7 @@ const router = express.Router();
 const asistenciaController = require("../controllers/asistencia.controller");
 const { verificarAutenticacion } = require("../middlewares/auth.middleware");
 
+router.post("/registrarESP", asistenciaController.registrarAsistenciaESP);
 router.post(
   "/materia/:materiaId",
   verificarAutenticacion,

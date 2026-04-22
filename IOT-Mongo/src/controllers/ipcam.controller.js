@@ -13,7 +13,7 @@ const CAM_IP = process.env.CAM_IP;
 const CAM_PORT = process.env.CAM_PORT;
 const USUARIO = process.env.CAM_USER;
 const PASSWORD = process.env.CAM_PASS;
-const ESP_IP = "192.168.1.105"; 
+const ESP_IP = "192.168.1.101"; 
 const FASTAPI_URL = "http://attendfi:8000/recognize-stream";
 
 let grabando = false;
@@ -40,7 +40,13 @@ async function notificarESP(req, res) {
 }
 
 // ipcam.controller.js optimizado
-async function procesarReconocimientoDirecto() {
+
+
+// URL de tu backend principal (ajusta el puerto si es necesario)
+const BACKEND_ASISTENCIAS_URL = "http://inscripciones:3001/api/asistencias/registrarESP";
+
+// 💡 NOTA: Ahora la función recibe 'materia_id_materia' como parámetro
+async function procesarReconocimientoDirecto(materia_id_materia) {
   if (procesando) return;
   procesando = true;
 
@@ -58,22 +64,18 @@ async function procesarReconocimientoDirecto() {
     // 🟢 EMITIR A VUE POR SOCKET.IO
     try {
       const io = getIO();
-      // Construimos el objeto tal como Vue espera recibirlo de MongoDB
       const eventoParaVue = {
         fecha_hora: new Date().toISOString(),
         resultado: data.result,
-        // Si fue Fake (foto), no hubo movimiento. En los demás casos (reconocido o desconocido) asumimos que sí.
         movimiento_detectado: data.result !== "Fake" && data.result !== "NoFace"
       };
-      
       io.emit("nuevaAsistencia", eventoParaVue);
-      console.log("📡 Evento emitido al frontend de Vue:", eventoParaVue.resultado);
     } catch (socketErr) {
       console.warn("⚠️ Advertencia: No se pudo emitir por socket:", socketErr.message);
     }
 
     // ------------------------------------------------
-    // LÓGICA DE COLORES ESP32
+    // LÓGICA DE COLORES Y REGISTRO EN DB
     // ------------------------------------------------
 
     // 🟡 NADIE
@@ -99,16 +101,49 @@ async function procesarReconocimientoDirecto() {
 
     // 🔵 RECONOCIDO
     else {
-      console.log(`🏆 ASISTENCIA: ${data.result.toUpperCase()}`);
-      await setESPColor(0, 0, 65535);
+      // Si FastAPI devuelve el CI, lo guardamos
+      const usuario_ci = data.result; 
+      console.log(`🏆 ASISTENCIA DETECTADA: CI ${usuario_ci}`);
+
+      // Verificamos si hay una clase activa (el ESP32 manda "Aula libre / Sin clase" si no hay nada)
+      if (!materia_id_materia || materia_id_materia === "Aula libre / Sin clase" || materia_id_materia === "Error de servidor") {
+          console.log("⚠️ Rostro reconocido, pero el aula está libre. No se registra en DB.");
+          await setESPColor(0, 65535, 65535); // Cian: Reconocido pero sin clase
+      } else {
+        console.log(`mandando ${usuario_ci} y ${materia_id_materia}`)
+          // 🚀 HACEMOS POST AL BACKEND DE ASISTENCIAS
+          
+          try {
+              const resAsistencia = await axios.post(BACKEND_ASISTENCIAS_URL, {
+                  usuario_ci: usuario_ci,
+                  materia_id_materia: materia_id_materia
+              });
+
+              console.log("✅ Asistencia Guardada DB:", resAsistencia.data.message);
+              await setESPColor(0, 0, 65535); // Azul: Todo perfecto
+              
+          } catch (dbError) {
+              // Si el backend de DB responde con error (ej. No está inscrito 403)
+              const errorMsj = dbError.response?.data?.message || dbError.message;
+              console.error("❌ Error DB Asistencia:", errorMsj);
+              
+              // Naranja: Lo reconoció la cámara, pero la base de datos lo rechazó (no inscrito)
+              await setESPColor(65535, 32768, 0); 
+          }
+      }
+      
       await new Promise(r => setTimeout(r, 2000));
     }
 
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    console.error("❌ Error general:",{
+  message: error.message,
+  status: error.response?.status,
+  data: error.response?.data
+});
     await setESPColor(65535, 0, 65535);
   } finally {
-    console.log("🟢 Listo");
+    console.log("🟢 Listo para el siguiente");
     await setESPColor(0, 65535, 0);
     procesando = false;
   }

@@ -25,14 +25,12 @@ const consultarHorariosCursosDia = async (dia, aula) => {
     try {
         // Hacemos la petición GET al endpoint que creamos antes
         // No enviamos token porque lo dejamos público
-        const response = await axios.get(`${SIXSEVEN}/cursos/buscar`, {
-            params: { dia, aula }
-        });
+        const response = await axios.get(`${SIXSEVEN}/cursos/buscar?dia=${dia}&aula=${aula}`);
 
         // Retornamos los datos que devuelve tu endpoint
         return response.data;
     } catch (error) {
-        console.error("❌ Error al llamar al servicio de cursos:", error.message);
+        console.error("❌ Error al llamar al servicio de cursos:", error);
         throw new Error("No se pudo obtener la información del cronograma");
     }
 };

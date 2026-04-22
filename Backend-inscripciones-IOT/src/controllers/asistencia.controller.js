@@ -85,8 +85,57 @@ async function misAsistenciasPorMateria(req, res, next) {
 }
 
 
+// Reutilizamos tus funciones de respuesta
+function ok(res, message, data = null, status = 200) {
+    return res.status(status).json({
+        ok: true,
+        message,
+        data
+    });
+}
+
+function fail(res, message, data = null, status = 400) {
+    return res.status(status).json({ success: false, message, data });
+}
+
+async function registrarAsistenciaESP(req, res) {
+    try {
+        const { usuario_ci, materia_id_materia } = req.body;
+
+        // 👇 DEBUG: ver qué está llegando realmente
+        console.log("BODY COMPLETO:", req.body);
+        console.log("CI:", usuario_ci);
+        console.log("Materia:", materia_id_materia);
+
+        if (!usuario_ci || !materia_id_materia) {
+            return fail(res, "El CI del usuario y el ID de la materia son obligatorios");
+        }
+
+        // 👇 Prueba temporal (sin service)
+        const asistencia = await asistenciaService.registrarAsistenciaESP(
+            usuario_ci,
+            materia_id_materia
+        );
+
+       return ok(res, "Asistencia registrada", {
+          usuario_ci,
+          materia_id_materia
+      }, 200);
+
+        // 🔥 Luego vuelves a esto:
+        // const asistencia = await asistenciaService.registrarAsistenciaEstudiante(usuario_ci, materia_id_materia);
+        // return ok(res, "Asistencia registrada exitosamente", asistencia, 201);
+
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, err.message, err.data || null, status);
+    }
+}
+
+
 module.exports = {
   registrarAsistenciaClase,
   obtenerHistorialMateria,
   misAsistenciasPorMateria,
+  registrarAsistenciaESP
 };

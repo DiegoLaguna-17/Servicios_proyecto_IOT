@@ -105,8 +105,91 @@ async function misAsistenciasPorMateria(estudianteId, materiaId) {
   };
 }
 
+async function registrarAsistenciaESP(usuario_ci, materia_id) {
+    try {
+        // 1️⃣ Verificar inscripción REAL (Corregido con !inner)
+        // El !inner fuerza un INNER JOIN. Si el CI no está inscrito en esa materia, no devuelve nada.
+        const { data: inscripcion, error: errorInscripcion } = await supabase
+            .from('inscripciones_materia')
+            .select(`
+                materia_id_materia,
+                inscripcion!inner (
+                    usuario_ci
+                )
+            `)
+            .eq('materia_id_materia', materia_id)
+            .eq('inscripcion.usuario_ci', usuario_ci)
+            .maybeSingle();
+
+        if (errorInscripcion) {
+            const err = new Error("Error al consultar la base de datos para la inscripción");
+            err.status = 500;
+            err.data = errorInscripcion;
+            throw err;
+        }
+
+        if (!inscripcion) {
+            const err = new Error("El estudiante no está inscrito en esta materia");
+            err.status = 403;
+            throw err;
+        }
+
+        // 2️⃣ EVITAR DUPLICADOS
+        // La fecha en formato YYYY-MM-DD encaja perfecto con tu columna 'date' de Postgres
+        const hoy = new Date().toISOString().split('T')[0];
+
+        const { data: existente } = await supabase
+            .from('asistencia')
+            .select('id_asistencia')
+            .eq('usuario_ci', usuario_ci)
+            .eq('materia_id_materia', materia_id)
+            .eq('fecha', hoy)
+            .maybeSingle();
+
+        if (existente) {
+            return {
+                ok: true,
+                message: "La asistencia ya fue registrada exitosamente el día de hoy",
+                // Devolvemos el ID existente por si el frontend lo necesita
+                data: existente 
+            };
+        }
+
+        // 3️⃣ Insertar asistencia
+        // Las llaves foráneas coinciden perfectamente con tu esquema
+        const { data: nuevaAsistencia, error: errorAsistencia } = await supabase
+            .from('asistencia')
+            .insert([{
+                usuario_ci: usuario_ci,
+                materia_id_materia: materia_id,
+                fecha: hoy,
+                estado: true
+            }])
+            .select()
+            .single();
+
+        if (errorAsistencia) {
+            const err = new Error("Error al guardar el registro de asistencia");
+            err.status = 500;
+            err.data = errorAsistencia;
+            throw err;
+        }
+
+        // 4️⃣ Respuesta limpia
+        return {
+            ok: true,
+            message: "Asistencia registrada correctamente",
+            data: nuevaAsistencia
+        };
+
+    } catch (error) {
+        throw error;
+    }
+}
+
 module.exports = {
   registrarAsistenciaClase,
   obtenerHistorialMateria,
   misAsistenciasPorMateria,
+  registrarAsistenciaESP
 };
