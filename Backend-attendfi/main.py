@@ -9,7 +9,24 @@ import cv2
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+
+# Definimos los orígenes permitidos. Solo tu frontend.
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
 load_dotenv()
 # Cargar "DB"
 db = load_db()
@@ -23,7 +40,7 @@ mongo_db = mongo_client.get_default_database(default="IOT")
 coleccion_asistencias = mongo_db["asistencias"]
 
 # Configuración de la cámara (puedes mover esto a un archivo .env después)
-CAM_URL = "http://192.168.1.100:8080/video"
+CAM_URL = "http://192.168.1.102:8080/video"
 @app.post("/recognize-stream")
 async def recognize_stream():
     cap = cv2.VideoCapture(CAM_URL)

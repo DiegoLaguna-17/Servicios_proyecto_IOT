@@ -35,6 +35,7 @@ import Pagos from "../modulos/pagos/components/Pagos.vue";
 import MiPerfil from "../modulos/estudiantes/views/MiPerfil.vue";
 import EstadoAcademico from "../modulos/estudiantes/views/EstadoAcademico.vue";
 import MiProgreso from "../modulos/estudiantes/views/MiProgreso.vue";
+import RegistroFacial from "../modulos/estudiantes/views/RegistroFacial.vue";
 
 //Importar vistas del docente
 import MateriasDocente from "../modulos/docentes/views/MateriasDocente.vue";
@@ -229,6 +230,11 @@ const routes = [
         path:"miPerfil",
         name:"miPerfil",
         component:MiPerfil
+      },
+      {
+        path:"registroFacial",
+        name:"registroFacial",
+        component:RegistroFacial
       }
     ],
   },

@@ -16,6 +16,11 @@
           <p><b>Ubicación:</b> {{ estudiante.direccion }}</p>
         </div>
       </div>
+      <div class="card-footer" style="padding: 20px 25px; border-top: 1px solid #eee; text-align: right;">
+        <router-link to="/estudiante/registroFacial" class="btn-primary" style="text-decoration: none; display: inline-block;">
+          📸 Registrar Rostro Biomédico
+        </router-link>
+      </div>
     </section>
 
     <section class="card shadow-sm">

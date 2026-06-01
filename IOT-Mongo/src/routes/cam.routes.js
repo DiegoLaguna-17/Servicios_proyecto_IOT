@@ -4,8 +4,8 @@ const camController = require("../controllers/ipcam.controller");
 
 // cam.routes.js
 router.post("/foto", (req, res) => {
-  const { materia } = req.body;
-  camController.procesarReconocimientoDirecto(materia);
+  const { materia,ip_esp,aula } = req.body;
+  camController.procesarReconocimientoDirecto(materia,ip_esp);
   res.json({ status: "proceso_iniciado" }); // Respuesta rápida al ESP32
   
 });
