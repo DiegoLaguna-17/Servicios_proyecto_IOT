@@ -44,6 +44,9 @@
         <router-link :to="{name:'listarAdministradores'}" class="menu-item">
           Administradores
         </router-link>
+        <router-link :to="{name:'asistenciasIOT'}" class="menu-item">
+          Asistencias IOT
+        </router-link>
       </nav>
 
       <!-- Logout -->

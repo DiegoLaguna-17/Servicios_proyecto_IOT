@@ -6,6 +6,7 @@ import ListarDocentes from "../modulos/seguridad/views/ListarDocentes.vue";
 import ListarAdministradores from "../modulos/seguridad/views/ListarAdministradores.vue";
 import RegistrarEstudiantes from "../modulos/seguridad/views/RegistrarEstudiantes.vue";
 import RegistrarDocentes from "../modulos/seguridad/views/RegistrarDocentes.vue";
+import AsistenciasSeguridad from "../modulos/seguridad/views/AsistenciasSeguridad.vue";
 
 import AdminLayout from "../layouts/AdminLayout.vue";
 import ListarCarreras from "../modulos/admin/views/ListarCarreras.vue";
@@ -34,6 +35,7 @@ import Pagos from "../modulos/pagos/components/Pagos.vue";
 import MiPerfil from "../modulos/estudiantes/views/MiPerfil.vue";
 import EstadoAcademico from "../modulos/estudiantes/views/EstadoAcademico.vue";
 import MiProgreso from "../modulos/estudiantes/views/MiProgreso.vue";
+import RegistroFacial from "../modulos/estudiantes/views/RegistroFacial.vue";
 
 //Importar vistas del docente
 import MateriasDocente from "../modulos/docentes/views/MateriasDocente.vue";
@@ -88,6 +90,11 @@ const routes = [
         path: "registrarAdmin",
         name: "registrarAdmin",
         component: RegistrarAdmin,
+      },
+      {
+        path: "asistenciasIOT",
+        name: "asistenciasIOT",
+        component: AsistenciasSeguridad,
       },
     ],
   },
@@ -223,6 +230,11 @@ const routes = [
         path:"miPerfil",
         name:"miPerfil",
         component:MiPerfil
+      },
+      {
+        path:"registroFacial",
+        name:"registroFacial",
+        component:RegistroFacial
       }
     ],
   },
