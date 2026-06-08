@@ -40,7 +40,7 @@ mongo_db = mongo_client.get_default_database(default="IOT")
 coleccion_asistencias = mongo_db["asistencias"]
 
 # Configuración de la cámara (puedes mover esto a un archivo .env después)
-CAM_URL = "http://192.168.1.102:8080/video"
+CAM_URL = "http://10.205.180.197:8080/video"
 @app.post("/recognize-stream")
 async def recognize_stream():
     cap = cv2.VideoCapture(CAM_URL)
