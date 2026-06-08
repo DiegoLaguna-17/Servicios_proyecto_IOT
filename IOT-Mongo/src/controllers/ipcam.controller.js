@@ -111,7 +111,7 @@ async function procesarReconocimientoDirecto(materia_id_materia, esp_ip) {
             materia_id_materia
           });
 
-          console.log("✅ DB OK");
+          console.log(`✅ OK ${usuario_ci} en ${materia_id_materia}`);
           responseESP.color = [0, 0, 65535];
 
         } catch (dbError) {
