@@ -1,31 +1,34 @@
-# 🎓 AttendFi - Sistema Inteligente de Asistencia IoT y Reconocimiento Facial
-
-![Vue](https://img.shields.io/badge/Vue.js-3-42b883?style=for-the-badge&logo=vue.js)
-![Node](https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=node.js)
-![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?style=for-the-badge&logo=fastapi)
-![Python](https://img.shields.io/badge/Python-3-blue?style=for-the-badge&logo=python)
-![MongoDB](https://img.shields.io/badge/MongoDB-Database-47A248?style=for-the-badge&logo=mongodb)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=for-the-badge&logo=postgresql)
-![Socket.IO](https://img.shields.io/badge/WebSockets-Socket.IO-black?style=for-the-badge&logo=socket.io)
-![ESP32](https://img.shields.io/badge/ESP32-IoT-red?style=for-the-badge)
+# 🎓 AttendFi - Sistema Inteligente de Asistencia IoT con Reconocimiento Facial
 
 ---
 
-AttendFi es una plataforma integral de gestión académica y seguridad diseñada para automatizar el registro de asistencias mediante **Internet de las Cosas (IoT)**, **Visión Computacional (IA)** y una **arquitectura de microservicios en tiempo real**.
+## 📌 Descripción
 
-Este proyecto evoluciona conceptos de gestión académica para integrar hardware y redes neuronales en un ecosistema robusto, escalable y eficiente.
+**AttendFi** es una plataforma de gestión académica y seguridad que automatiza el registro de asistencia en aulas mediante:
+
+- Internet de las Cosas (IoT)
+- Visión Computacional (IA)
+- Arquitectura de microservicios en tiempo real
+
+El sistema reduce errores humanos, elimina procesos manuales y permite monitoreo en vivo del aula.
 
 ---
 
 ## 🚀 Arquitectura del Sistema
 
-El sistema opera bajo un modelo de **microservicios distribuidos**, separando:
+El sistema está basado en **microservicios desacoplados** desplegados con Docker:
 
-- Captura de hardware  
-- Procesamiento de IA  
-- Reglas de negocio académicas  
+- **Capa Edge (IoT):** Captura de eventos físicos  
+- **Gateway (Node.js):** Procesamiento inicial y mensajería  
+- **Motor IA (FastAPI):** Reconocimiento facial  
+- **Core Académico (Node.js):** Lógica de negocio  
+- **Frontend (Vue 3):** Interfaz por roles  
 
-Esto permite **alta escalabilidad** y **baja latencia**.
+**Características:**
+
+- ✔ Alta escalabilidad  
+- ✔ Baja latencia  
+- ✔ Resiliencia ante fallos  
 
 ---
 
@@ -33,42 +36,37 @@ Esto permite **alta escalabilidad** y **baja latencia**.
 
 ```mermaid
 sequenceDiagram
-    participant E as 🔌 ESP32 (IoT)
-    participant G as 🚦 Gateway (Node + Mongo)
-    participant M as 🛡️ Front Monitoreo (Vue)
-    participant I as 🧠 Motor IA (FastAPI)
-    participant C as 🏛️ Core Académico (Node)
-    participant F as 👨‍🏫 Front Docente (Vue)
-    participant S as 🗄️ Supabase (PostgreSQL)
+    participant E as ESP32 (IoT)
+    participant G as Gateway (Node + Mongo)
+    participant I as Motor IA (FastAPI)
+    participant C as Core Académico (Node)
+    participant F as Frontend (Vue)
+    participant S as PostgreSQL (Supabase)
 
-    Note over E,S: Flujo de Detección en Tiempo Real
-    E->>G: 1. Alerta de Movimiento (Sensor PIR)
-    G->>I: 2. Ordena Captura de Video
-    Note over I: Conecta a Cámara IP (Tablet)<br/>Extrae frames
-    I-->>G: 3. Devuelve CI o Alerta (Fake/NoFace)
+    E->>G: Movimiento detectado (PIR)
+    G->>I: Solicita análisis
+    I-->>G: Resultado (CI / Error)
+
+    G->>C: Envía datos
+    C->>S: Valida inscripción
     
-    par Acciones Asíncronas del Gateway
-        G->>G: 4a. Guarda Histórico en MongoDB
-        G-)M: 4b. Emite WebSocket (Detección en vivo)
-        G->>C: 5. Envía CI + ID Materia
+    alt No inscrito
+        S-->>C: 403
+    else Inscrito
+        S-->>C: OK
+        C-->>F: Actualización en tiempo real
     end
-
-    C->>S: 6. Valida Inscripción (INNER JOIN)
-    alt Estudiante NO Inscrito
-        S-->>C: Error 403 (Rechazado)
-    else Estudiante Inscrito
-        S-->>C: 200 OK (Guarda Asistencia)
-        C-)F: 7. Emite WebSocket (Presente ✅)
-        Note over F: Actualiza Gráfico de Torta<br/>sin recargar
-end
 ```
 ## 🔌 1. Capa IoT (Hardware Gatillo)
 
-**Dispositivo:** ESP32 + Sensor PIR  
+**Dispositivo:** ESP32 + Sensor PIR  + LED RGB + Cámara IP
 
 ### Lógica en el Borde:
-- Descarga el horario del día (UTC-4)  
-- Lo almacena en caché para evitar peticiones innecesarias  
+- Sincronización con NTP  
+- Consulta de horarios (HTTP GET)  
+- Validación local (Edge Computing)  
+- Envío de eventos (HTTP POST)
+- Feedback visual mediante LED   
 
 ### Rol:
 Actúa como un gatillo inteligente que:
@@ -83,7 +81,7 @@ Actúa como un gatillo inteligente que:
 ### 🚦 IoT Gateway & Log Broker
 - Node.js + MongoDB + Socket.IO  
 - Orquestador central  
-- Recibe alertas del ESP32  
+- Recibe alertas del hardware
 - Guarda histórico en MongoDB  
 - Emite eventos en tiempo real vía WebSockets  
 
@@ -98,8 +96,9 @@ Actúa como un gatillo inteligente que:
 - Reconocido 
 
 ### 🏛️ Core Académico
-- Node.js + Supabase (PostgreSQL)  
-- Aplica reglas de negocio  
+- Node.js + Express + Supabase (PostgreSQL)  
+- Aplica reglas de negocio
+- Gestión de alumnos, materias y asistencias 
 - Valida inscripciones con INNER JOIN  
 - Evita duplicados  
 - Emite actualizaciones al frontend docente  
@@ -112,13 +111,24 @@ Actúa como un gatillo inteligente que:
 - Vue.js 3  
 - Panel para docentes  
 - Estadísticas de asistencia  
-- Gráficos de torta dinámicos (CSS puro)  
+- Gráficos de torta dinámicos (CSS puro)
+- Eventos IoT
+- Visualización con Chart.js  
 
-### 🛡️ Front de Monitoreo
-- Vue.js 3  
-- Dashboard en tiempo real  
-- Logs de detecciones  
-- Estado del sistema  
+---
+## 🔒 Seguridad
+
+### Comunicación
+- API REST (JSON)  
+- Manejo de errores y timeouts  
+
+### Autenticación
+- JWT (Bearer Token)  
+- Control de acceso por roles  
+
+### Base de Datos
+- Row Level Security (RLS)  
+- Restricción por usuario docente
 
 ---
 
@@ -136,23 +146,30 @@ Actúa como un gatillo inteligente que:
 
 ---
 
-## 🔄 Flujo de Trabajo
 
-### 1. Sincronización:
-El ESP32 obtiene las clases del día desde el Gateway  
+## 🔄 Flujo Resumido
 
-### 2. Detección:
-El sensor PIR detecta movimiento y determina la materia actual  
+1. ESP32 detecta movimiento  
+2. Validación local de horario  
+3. Envío de evento al Gateway  
+4. Reconocimiento facial (IA)  
+5. Registro de log en MongoDB  
+6. Validación de inscripción  
+7. Registro de asistencia  
+8. Actualización en tiempo real en frontend
 
-### 3. Análisis:
-FastAPI captura video, reconoce al usuario y devuelve el CI  
+---
 
-### 4. Seguridad:
-El Gateway guarda el evento en MongoDB y actualiza monitoreo  
+## 👥 Equipo
 
-### 5. Registro:
-Se valida la inscripción en Supabase y se registra la asistencia  
+Proyecto desarrollado en la  
+**Universidad Católica Boliviana "San Pablo"**  
+Carrera: Ingeniería de Sistemas  
 
-### 6. Actualización:
-WebSocket actualiza el frontend docente en tiempo real  
-    end
+- Adriana Alvarez  
+- Adrian Gonzales  
+- Diego Laguna  
+- Adrián Ordóñez  
+
+---
+    
